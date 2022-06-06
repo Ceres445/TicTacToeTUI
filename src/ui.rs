@@ -49,6 +49,7 @@ pub fn draw_warning<B: Backend>(f: &mut Frame<B>, rect: &Rect, message: String) 
 }
 
 pub fn draw_board<B: Backend>(f: &mut Frame<B>, app: &mut Game, rect: &Rect) {
+    // TODO: Make it look like a tic tac toe board
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let rows = app.board.iter().enumerate().map(|(i, item)| {
         let height = item

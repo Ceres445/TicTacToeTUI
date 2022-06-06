@@ -20,7 +20,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    // TODO: wrap game in an app instance, so you can play multiple games
+    // TODO: wrap game in an app instance, so you can play multiple games and save scores
+    // TODO: add a menu to select game
     let game = Game::new(String::from("Tic Tac Toe"), false);
     run_app(&mut terminal, game, Duration::from_millis(250))?;
 
