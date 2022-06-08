@@ -1,29 +1,85 @@
-use crate::app::Game;
+use crate::{
+    app::App,
+    game::{Board, GameState, Player, Position},
+};
 use tui::{
     backend::Backend,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    text::Span,
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut Game) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let rects = Layout::default()
         .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
         .split(f.size());
-    if app.should_continue {
-        draw_board(f, app, &rects[0]);
-    } else {
-        draw_game_over(f, &rects[0], app);
+    let main = Layout::default()
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .direction(Direction::Horizontal)
+        .split(rects[0]);
+    let state = &app.state;
+    match state {
+        GameState::GameInProgress(board, _, pos) => {
+            draw_board(f, board.to_vec(), *pos, &main[0]);
+        }
+        GameState::GameOver(winner) => {
+            draw_game_over(f, &rects[0], *winner);
+        }
+        GameState::Menu(row) => {
+            draw_menu(f, &rects[0], *row);
+        }
     }
     match &app.warning_message {
         Some(message) => draw_warning(f, &rects[1], message.to_string()),
-        None => draw_info(f, &rects[1], app.should_continue),
+        None => draw_info(f, &rects[1], state),
     }
+    draw_score(f, app, &main[1]);
 }
 
-pub fn draw_game_over<B: Backend>(f: &mut Frame<B>, rect: &Rect, app: &Game) {
-    let winning_message = match app.winner {
+fn draw_menu<B: Backend>(f: &mut Frame<B>, rect: &Rect, row: u8) {
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+    let table = Table::new([
+        Row::new([Cell::from("Resume Game")]),
+        Row::new([Cell::from("New Game")]),
+        Row::new([Cell::from("Quit")]),
+    ])
+    .block(Block::default().borders(Borders::ALL).title("Menu"))
+    .widths(&[Constraint::Percentage(100)])
+    .highlight_style(selected_style)
+    .highlight_symbol(">>");
+
+    let mut state = TableState::default();
+    state.select(Some(row.into()));
+    f.render_stateful_widget(table, *rect, &mut state)
+}
+
+pub fn draw_score<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: &Rect) {
+    let table = Table::new(vec![
+        Row::new(vec![Cell::from("Score:".to_string())]),
+        Row::new(vec![Cell::from(format!(
+            "Player 1's score: {}\nPlayer 2's score: {}",
+            app.score.player1, app.score.player2
+        ))])
+        .style(Style::default().fg(Color::Yellow))
+        .height(2),
+        if let GameState::GameInProgress(_, player, _) = app.state {
+            Row::new(vec![Cell::from(format!("{}'s turn", player,))])
+                .style(Style::default().fg(player.color()))
+        } else {
+            Row::new(vec![Cell::from("Game Over".to_string())])
+                .style(Style::default().fg(Color::Red))
+        },
+    ])
+    .block(Block::default().borders(Borders::ALL))
+    .widths(&[Constraint::Percentage(100)]);
+
+    f.render_widget(table, *rect)
+}
+
+pub fn draw_game_over<B: Backend>(f: &mut Frame<B>, rect: &Rect, winner: Option<Player>) {
+    let winning_message = match winner {
         Some(winner) => format!("{} wins!", winner),
         None => "It's a draw!".to_string(),
     };
@@ -31,8 +87,8 @@ pub fn draw_game_over<B: Backend>(f: &mut Frame<B>, rect: &Rect, app: &Game) {
         .block(Block::default().title("Game Over").borders(Borders::ALL))
         .style(
             Style::default()
-                .fg(if let Some(_) = app.winner {
-                    Color::Green
+                .fg(if let Some(player) = winner {
+                    player.color()
                 } else {
                     Color::Gray
                 })
@@ -48,24 +104,24 @@ pub fn draw_warning<B: Backend>(f: &mut Frame<B>, rect: &Rect, message: String) 
     f.render_widget(block, *rect);
 }
 
-pub fn draw_board<B: Backend>(f: &mut Frame<B>, app: &mut Game, rect: &Rect) {
+pub fn draw_board<B: Backend>(f: &mut Frame<B>, board: Board, pos: Position, rect: &Rect) {
     // TODO: Make it look like a tic tac toe board
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
-    let rows = app.board.iter().enumerate().map(|(i, item)| {
-        let height = item
-            .iter()
-            .map(|content| content.to_text(None).chars().filter(|c| *c == '\n').count())
-            .max()
-            .unwrap_or(0)
-            + 1;
+    let rows = board.iter().enumerate().map(|(i, item)| {
+        // let height = item
+        //     .iter()
+        //     .map(|content| content.to_text(None).chars().filter(|c| *c == '\n').count())
+        //     .max()
+        //     .unwrap_or(0)
+        //     + 1;
         let cells = item.iter().enumerate().map(|(j, c)| {
-            Cell::from(c.to_text(Some((i, j)))).style(if (i, j) == app.current_position {
+            Cell::from(Span::raw(c.to_text(Some((i, j))))).style(if (i, j) == pos {
                 selected_style
             } else {
-                Style::default()
+                Style::default().fg(c.color())
             })
         });
-        Row::new(cells).height(height as u16).bottom_margin(1)
+        Row::new(cells).height(rect.height / 3)
     });
     let t = Table::new(rows)
         .block(Block::default().borders(Borders::ALL))
@@ -73,12 +129,15 @@ pub fn draw_board<B: Backend>(f: &mut Frame<B>, app: &mut Game, rect: &Rect) {
     f.render_widget(t, *rect)
 }
 
-pub fn draw_info<B: Backend>(f: &mut Frame<B>, rect: &Rect, game_is_running: bool) {
-    let info = String::from(if game_is_running {
-        "Press P to place a piece, Q to quit, or R to reset the board.\nUse the arrow keys to move the piece."
-    } else {
-        "Press R to reset the board or Q to quit."
-    });
+pub fn draw_info<B: Backend>(f: &mut Frame<B>, rect: &Rect, state: &GameState) {
+    let info = match state {
+        GameState::GameInProgress(_, _, _) => "Game in progress...\nPress P to place a piece, Q to \
+            quit, or R to reset the board.\nUse the arrow keys to move the piece.".to_string(),
+        GameState::GameOver(_) => "Game over!\nPress R to reset the board or Q to quit."
+            .to_string(),
+        GameState::Menu(_) => "Tic Tac Toe Menu\nPress Q to quit, or use the up and down arrow keys to select an item."
+            .to_string(),
+    };
     let text_block =
         Paragraph::new(info).block(Block::default().title("Info").borders(Borders::ALL));
     f.render_widget(text_block, *rect);

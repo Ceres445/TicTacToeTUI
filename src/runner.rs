@@ -1,4 +1,4 @@
-use crate::{app::Game, ui};
+use crate::{app::App, ui};
 use std::{error::Error, io, sync::mpsc, thread, time::Duration};
 use termion::{
     event::Key,
@@ -22,39 +22,29 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     // create app and run it
     // TODO: wrap game in an app instance, so you can play multiple games and save scores
     // TODO: add a menu to select game
-    let game = Game::new(String::from("Tic Tac Toe"), false);
-    run_app(&mut terminal, game, Duration::from_millis(250))?;
+    let app = App::new(String::from("Tic Tac Toe"));
+    run_app(&mut terminal, app, Duration::from_millis(250))?;
 
     Ok(())
 }
 
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    mut app: Game,
+    mut app: App,
     tick_rate: Duration,
 ) -> Result<(), Box<dyn Error>> {
     let events = events(tick_rate);
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
-        match events.recv()? {
-            Event::Input(key) => match key {
-                Key::Char(c) => app.on_key(c),
-                Key::Up => app.on_up(),
-                Key::Down => app.on_down(),
-                Key::Left => app.on_left(),
-                Key::Right => app.on_right(),
-                _ => {}
-            },
-            Event::Tick => continue,
-        }
+        app.update(events.recv()?);
         if app.quit {
             return Ok(());
         }
     }
 }
 
-enum Event {
+pub enum Event {
     Input(Key),
     Tick,
 }

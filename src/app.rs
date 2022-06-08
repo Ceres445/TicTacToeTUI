@@ -1,211 +1,151 @@
-use core::fmt;
+use termion::event::Key;
 
-use adorn::adorn_method;
+use crate::{
+    game::{Game, GameState},
+    runner::Event,
+};
+use std::ops::AddAssign;
 
-pub struct Game {
+pub struct App {
     pub name: String,
-    pub enhanced_graphics: bool,
-    pub board: Vec<Vec<GameCell>>,
-    pub current_position: (usize, usize),
-    pub current_player: Player,
-    pub winner: Option<Player>,
-    pub should_continue: bool,
+    game: Game,
+    pub score: Score,
     pub quit: bool,
+    pub state: GameState,
     pub warning_message: Option<String>,
+    pub prev_state: Option<GameState>,
 }
 
-#[derive(Copy, Clone)]
-pub enum Player {
-    Player1,
-    Player2,
+pub struct Score {
+    pub player1: u32,
+    pub player2: u32,
 }
 
-impl Player {
-    pub fn next(&self) -> Player {
-        match self {
-            Player::Player1 => Player::Player2,
-            Player::Player2 => Player::Player1,
+impl Score {
+    pub fn new() -> Score {
+        Score {
+            player1: 0,
+            player2: 0,
         }
     }
 }
 
-impl fmt::Display for Player {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Player::Player1 => write!(f, "Player 1 (X)"),
-            Player::Player2 => write!(f, "Player 2 (O)"),
-        }
+impl AddAssign for Score {
+    fn add_assign(&mut self, other: Score) -> () {
+        self.player1 += other.player1;
+        self.player2 += other.player2;
     }
 }
 
-#[derive(Clone, PartialEq, Copy)]
-pub enum GameCell {
-    Empty,
-    Cross,
-    Circle,
-}
-
-impl GameCell {
-    pub fn to_text(&self, pos: Option<(usize, usize)>) -> String {
-        let centre = match self {
-            GameCell::Empty => String::from("L"),
-            GameCell::Cross => String::from("X"),
-            GameCell::Circle => String::from("O"),
-        };
-        match pos {
-            Some((x, y)) => match (x, y) {
-                (0, 0) => format!("{}", centre),
-                (0, 1) => format!("{}", centre),
-                (0, 2) => format!("{}", centre),
-                (1, 0) => format!("{}", centre),
-                (1, 1) => format!("{}", centre),
-                (1, 2) => format!("{}", centre),
-                (2, 0) => format!("{}", centre),
-                (2, 1) => format!("{}", centre),
-                (2, 2) => format!("{}", centre),
-                _ => panic!("Invalid coordinates: {}, {}", x, y),
-            },
-            None => centre,
-        }
-    }
-}
-
-impl Game {
-    fn get_current_player_cell(&self) -> GameCell {
-        match self.current_player {
-            Player::Player1 => GameCell::Cross,
-            Player::Player2 => GameCell::Circle,
-        }
-    }
-
-    fn next(&mut self) {
-        let check =
-            |x: GameCell, y: GameCell, z: GameCell| x == y && y == z && x != GameCell::Empty;
-        let mut rows = self.board.iter().map(|row| check(row[0], row[1], row[2]));
-        let mut cols =
-            (0..3).map(|col| check(self.board[0][col], self.board[1][col], self.board[2][col]));
-        let diag1 = check(self.board[0][0], self.board[1][1], self.board[2][2]);
-        let diag2 = check(self.board[0][2], self.board[1][1], self.board[2][0]);
-        if rows.any(|x| x) || cols.any(|x| x) || diag1 || diag2 {
-            self.winner = Some(self.current_player);
-            self.should_continue = false;
-        } else if self.board.iter().flatten().all(|x| *x != GameCell::Empty) {
-            self.winner = None;
-            self.should_continue = false;
-        } else {
-            self.current_player = self.current_player.next();
-        }
-    }
-    fn place(&mut self) {
-        self.warning_message = None;
-        if let Some(cell) = self
-            .board
-            .get(self.current_position.0)
-            .and_then(|row| row.get(self.current_position.1))
-        {
-            match cell {
-                GameCell::Empty => {
-                    self.board[self.current_position.0][self.current_position.1] =
-                        self.get_current_player_cell();
-                    self.next();
-                }
-                _ => {
-                    self.warning_message = Some("This cell is already taken!".to_string());
-                    return;
-                }
-            }
-        } else {
-            println!("This cell is out of range!");
-        }
-    }
-}
-
-impl Game {
-    pub fn new(name: String, enhanced_graphics: bool) -> Game {
-        Game {
+impl App {
+    pub fn new(name: String) -> App {
+        let mut game = Game::new();
+        let state = game.get_state().unwrap();
+        App {
             name,
-            enhanced_graphics,
-            board: vec![vec![GameCell::Empty; 3]; 3],
-            current_position: (0, 0),
-            current_player: Player::Player1,
-            winner: None,
-            should_continue: true,
+            game,
+            score: Score::new(),
             quit: false,
+            state,
             warning_message: None,
+            prev_state: None,
         }
     }
 
-    fn quit(&mut self) {
+    pub fn quit(&mut self) {
         self.quit = true;
     }
 
+    fn show_menu(&mut self) {
+        if let GameState::Menu(_) = self.state {
+            self.state = self.prev_state.clone().unwrap();
+        } else {
+            self.prev_state = Some(self.state.clone());
+            self.state = GameState::Menu(0);
+        }
+    }
+    fn next_row_menu(&mut self, up: bool) {
+        if let GameState::Menu(i) = self.state {
+            if up {
+                if i < 2 {
+                    self.state = GameState::Menu(i + 1);
+                } else {
+                    self.state = GameState::Menu(0);
+                }
+            } else {
+                if i > 0 {
+                    self.state = GameState::Menu(i - 1);
+                } else {
+                    self.state = GameState::Menu(2);
+                }
+            }
+        }
+    }
+
+    pub fn update(&mut self, event: Event) {
+        match self.state {
+            GameState::Menu(x) => match event {
+                Event::Input(key) => match key {
+                    Key::Char(c) => match c {
+                        'q' => self.quit(),
+                        'm' => self.show_menu(),
+                        '\n' => match x {
+                            0 => self.show_menu(),
+                            1 => self.reset(),
+                            2 => self.quit(),
+                            _ => self.state = GameState::Menu(0),
+                        },
+                        _ => {}
+                    },
+                    Key::Up => self.next_row_menu(false),
+                    Key::Down => self.next_row_menu(true),
+                    _ => {}
+                },
+                _ => {}
+            },
+            _ => match event {
+                Event::Input(key) => match key {
+                    Key::Char(c) => self.on_key(c),
+                    Key::Esc => self.show_menu(),
+                    Key::Up => self.game.on_up(),
+                    Key::Down => self.game.on_down(),
+                    Key::Left => self.game.on_left(),
+                    Key::Right => self.game.on_right(),
+                    _ => {}
+                },
+                Event::Tick => (),
+            },
+        };
+        if let Some(state) = self.game.get_state() {
+            self.state = state;
+            match self.state {
+                GameState::GameOver(_) => self.score += self.game.get_score(),
+                _ => {}
+            }
+            self.warning_message = self.game.get_warning_message();
+        }
+    }
     fn reset(&mut self) {
-        self.board = vec![vec![GameCell::Empty; 3]; 3];
-        self.current_position = (0, 0);
-        self.current_player = Player::Player1;
-        self.winner = None;
-        self.should_continue = true;
-        self.quit = false;
-        self.warning_message = None;
+        self.game = Game::new();
+        self.state = self.game.get_state().unwrap();
+        self.warning_message = self.game.get_warning_message();
     }
 
     pub fn on_key(&mut self, char: char) {
-        if self.should_continue {
-            match char {
-                'p' => &self.place(),
-                'q' => &self.quit(),
-                'r' => &self.reset(),
-                _ => &(),
-            };
-        } else {
-            match char {
-                'q' => self.quit(),
-                'r' => self.reset(),
-                _ => (|| self.warning_message = None)(),
-            };
-        }
-    }
-
-    fn wrap<F>(&mut self, func: F)
-    where
-        F: Fn(&mut Self),
-    {
-        if self.should_continue {
-            func(self);
-        } else {
-            self.warning_message = Some("Game is over!".to_string());
-        }
-    }
-
-    #[adorn_method(wrap)]
-    pub fn on_up(&mut self) {
-        self.warning_message = None;
-        if self.current_position.0 > 0 {
-            self.current_position.0 -= 1;
-        }
-    }
-
-    #[adorn_method(wrap)]
-    pub fn on_down(&mut self) {
-        self.warning_message = None;
-        if self.current_position.0 < 2 {
-            self.current_position.0 += 1;
-        }
-    }
-
-    #[adorn_method(wrap)]
-    pub fn on_left(&mut self) {
-        self.warning_message = None;
-        if self.current_position.1 > 0 {
-            self.current_position.1 -= 1;
-        }
-    }
-
-    #[adorn_method(wrap)]
-    pub fn on_right(&mut self) {
-        self.warning_message = None;
-        if self.current_position.1 < 2 {
-            self.current_position.1 += 1;
-        }
+        match char {
+            'p' => {
+                if !self.game.is_over() {
+                    self.game.place()
+                }
+            }
+            'q' => self.quit(),
+            'r' => self.reset(),
+            'm' => self.show_menu(),
+            _ => {
+                if self.game.is_over() {
+                    self.game.warning_message = None;
+                }
+            }
+        };
     }
 }
