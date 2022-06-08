@@ -33,9 +33,13 @@ fn run_app<B: Backend>(
 ) -> Result<(), Box<dyn Error>> {
     let events = events(tick_rate);
     loop {
+        // draw app
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
+        // handle events
         app.update(events.recv()?);
+
+        // check if app is done
         if app.quit {
             return Ok(());
         }

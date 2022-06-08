@@ -79,6 +79,7 @@ impl GameCell {
             GameCell::Cross => String::from("X"),
             GameCell::Circle => String::from("O"),
         };
+        // TODO: Print proper positions with borders
         match pos {
             Some((x, y)) => match (x, y) {
                 (0, 0) => format!("{}", centre),
