@@ -131,9 +131,9 @@ pub fn draw_board<B: Backend>(f: &mut Frame<B>, board: Board, pos: Position, rec
 
 pub fn draw_info<B: Backend>(f: &mut Frame<B>, rect: &Rect, state: &GameState) {
     let info = match state {
-        GameState::GameInProgress(_, _, _) => "Game in progress...\nPress P to place a piece, Q to \
+        GameState::GameInProgress(_, _, _) => "Game in progress...\nPress M/ Esc to open the Game Menu\nPress P to place a piece, Q to \
             quit, or R to reset the board.\nUse the arrow keys to move the piece.".to_string(),
-        GameState::GameOver(_) => "Game over!\nPress R to reset the board or Q to quit."
+        GameState::GameOver(_) => "Game over!\nPress M/ Esc to open the Game Menu\nPress R to reset the board or Q to quit."
             .to_string(),
         GameState::Menu(_) => "Tic Tac Toe Menu\nPress Q to quit, or use the up and down arrow keys to select an item."
             .to_string(),

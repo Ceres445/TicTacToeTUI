@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tui = "0.16"
-termion = "1.5"
+tui = {version = "0.18", features = ['crossterm'], default-features = false}
+crossterm = "0.23"
 adorn = "0.4.0"

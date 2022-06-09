@@ -1,10 +1,7 @@
-use termion::event::Key;
-
-use crate::{
-    game::{Game, GameState},
-    runner::Event,
-};
+use crate::game::{Game, GameState};
 use std::ops::AddAssign;
+
+use crossterm::event::{KeyCode, KeyEvent};
 
 pub struct App {
     pub name: String,
@@ -82,38 +79,32 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, event: Event) {
+    pub fn update(&mut self, key: KeyEvent) {
         match self.state {
-            GameState::Menu(x) => match event {
-                Event::Input(key) => match key {
-                    Key::Char(c) => match c {
-                        'q' => self.quit(),
-                        'm' => self.show_menu(),
-                        '\n' => match x {
-                            0 => self.show_menu(),
-                            1 => self.reset(),
-                            2 => self.quit(),
-                            _ => self.state = GameState::Menu(0),
-                        },
-                        _ => {}
-                    },
-                    Key::Up => self.next_row_menu(false),
-                    Key::Down => self.next_row_menu(true),
+            GameState::Menu(x) => match key.code {
+                KeyCode::Char(c) => match c {
+                    'q' => self.quit(),
+                    'm' => self.show_menu(),
                     _ => {}
                 },
+                KeyCode::Enter => match x {
+                    0 => self.show_menu(),
+                    1 => self.reset(),
+                    2 => self.quit(),
+                    _ => self.state = GameState::Menu(0),
+                },
+                KeyCode::Up => self.next_row_menu(false),
+                KeyCode::Down => self.next_row_menu(true),
                 _ => {}
             },
-            _ => match event {
-                Event::Input(key) => match key {
-                    Key::Char(c) => self.on_key(c),
-                    Key::Esc => self.show_menu(),
-                    Key::Up => self.game.on_up(),
-                    Key::Down => self.game.on_down(),
-                    Key::Left => self.game.on_left(),
-                    Key::Right => self.game.on_right(),
-                    _ => {}
-                },
-                Event::Tick => (),
+            _ => match key.code {
+                KeyCode::Char(c) => self.on_key(c),
+                KeyCode::Esc => self.show_menu(),
+                KeyCode::Up => self.game.on_up(),
+                KeyCode::Down => self.game.on_down(),
+                KeyCode::Left => self.game.on_left(),
+                KeyCode::Right => self.game.on_right(),
+                _ => {}
             },
         };
         if let Some(state) = self.game.get_state() {
