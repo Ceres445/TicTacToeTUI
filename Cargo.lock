@@ -3,6 +3,15 @@
 version = 3
 
 [[package]]
+name = "TicTacToeTUI"
+version = "1.2.1"
+dependencies = [
+ "adorn",
+ "crossterm",
+ "tui",
+]
+
+[[package]]
 name = "adorn"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,15 +222,6 @@ dependencies = [
  "crossterm",
  "unicode-segmentation",
  "unicode-width",
-]
-
-[[package]]
-name = "tui-ttt"
-version = "0.1.0"
-dependencies = [
- "adorn",
- "crossterm",
- "tui",
 ]
 
 [[package]]
