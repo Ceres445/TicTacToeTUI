@@ -1,14 +1,24 @@
-use crate::game::{Game, GameState};
+use crate::{
+    computer_player::player::Opponent,
+    game::{Game, GameState},
+};
 use std::ops::AddAssign;
 
 use crossterm::event::{KeyCode, KeyEvent};
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum AppState {
+    StartMenu(u8),
+    Playing(GameState),
+    GameMenu(u8),
+    Quit,
+}
 
 pub struct App {
     pub name: String,
     game: Game,
     pub score: Score,
-    pub quit: bool,
-    pub state: GameState,
+    pub state: AppState,
     pub warning_message: Option<String>,
     pub prev_state: Option<GameState>,
 }
@@ -36,89 +46,120 @@ impl AddAssign for Score {
 
 impl App {
     pub fn new(name: String) -> App {
-        let mut game = Game::new();
-        let state = game.get_state().unwrap();
+        let game = Game::new(Opponent::Human);
         App {
             name,
             game,
             score: Score::new(),
-            quit: false,
-            state,
+            state: AppState::StartMenu(0),
             warning_message: None,
             prev_state: None,
         }
     }
 
     pub fn quit(&mut self) {
-        self.quit = true;
+        self.state = AppState::Quit;
     }
 
-    fn show_menu(&mut self) {
-        if let GameState::Menu(_) = self.state {
-            self.state = self.prev_state.clone().unwrap();
-        } else {
-            self.prev_state = Some(self.state.clone());
-            self.state = GameState::Menu(0);
+    fn toggle_menu(&mut self) {
+        match &self.state {
+            AppState::GameMenu(_) => {
+                self.state = AppState::Playing(self.prev_state.clone().unwrap())
+            }
+            AppState::Playing(state) => {
+                self.prev_state = Some(state.clone());
+                self.state = AppState::GameMenu(0);
+            }
+            _ => (),
         }
     }
+
     fn next_row_menu(&mut self, up: bool) {
-        if let GameState::Menu(i) = self.state {
-            if up {
-                if i < 2 {
-                    self.state = GameState::Menu(i + 1);
+        match self.state {
+            AppState::GameMenu(ref mut row) => {
+                if up {
+                    *row = (*row + 1) % 3;
                 } else {
-                    self.state = GameState::Menu(0);
-                }
-            } else {
-                if i > 0 {
-                    self.state = GameState::Menu(i - 1);
-                } else {
-                    self.state = GameState::Menu(2);
+                    *row = (*row + 2) % 3;
                 }
             }
+            AppState::StartMenu(ref mut row) => {
+                if up {
+                    *row = (*row + 1) % 3;
+                } else {
+                    *row = (*row + 2) % 3;
+                }
+            }
+            _ => {}
         }
+    }
+    fn start_game(&mut self, opponent: Opponent) {
+        let game = Game::new(opponent);
+        self.game = game;
+        self.state = AppState::Playing(self.game.get_state().unwrap());
     }
 
     pub fn update(&mut self, key: KeyEvent) {
         match self.state {
-            GameState::Menu(x) => match key.code {
+            AppState::GameMenu(x) => match key.code {
                 KeyCode::Char(c) => match c {
                     'q' => self.quit(),
-                    'm' => self.show_menu(),
+                    'm' => self.toggle_menu(),
                     _ => {}
                 },
                 KeyCode::Enter => match x {
-                    0 => self.show_menu(),
+                    0 => self.toggle_menu(),
                     1 => self.reset(),
                     2 => self.quit(),
-                    _ => self.state = GameState::Menu(0),
+                    _ => self.state = AppState::GameMenu(0),
                 },
                 KeyCode::Up => self.next_row_menu(false),
                 KeyCode::Down => self.next_row_menu(true),
                 _ => {}
             },
-            _ => match key.code {
-                KeyCode::Char(c) => self.on_key(c),
-                KeyCode::Esc => self.show_menu(),
-                KeyCode::Up => self.game.on_up(),
-                KeyCode::Down => self.game.on_down(),
-                KeyCode::Left => self.game.on_left(),
-                KeyCode::Right => self.game.on_right(),
+
+            AppState::Playing(_) => {
+                match key.code {
+                    KeyCode::Char(c) => self.on_key(c),
+                    KeyCode::Esc => self.toggle_menu(),
+                    KeyCode::Up => self.game.on_up(),
+                    KeyCode::Down => self.game.on_down(),
+                    KeyCode::Left => self.game.on_left(),
+                    KeyCode::Right => self.game.on_right(),
+                    _ => {}
+                }
+                if let Some(state) = self.game.get_state() {
+                    match state {
+                        GameState::GameOver(..) => self.score += self.game.get_score(),
+                        _ => {}
+                    }
+                    self.state = AppState::Playing(state);
+                    self.warning_message = self.game.get_warning_message();
+                }
+            }
+
+            AppState::StartMenu(x) => match key.code {
+                KeyCode::Char(c) => match c {
+                    'q' => self.quit(),
+                    _ => {}
+                },
+                KeyCode::Enter => match x {
+                    0 => self.start_game(Opponent::Human),
+                    1 => self.start_game(Opponent::Random),
+                    2 => self.start_game(Opponent::Minimax),
+                    _ => self.state = AppState::StartMenu(0),
+                },
+                KeyCode::Up => self.next_row_menu(false),
+                KeyCode::Down => self.next_row_menu(true),
                 _ => {}
             },
+            _ => {}
         };
-        if let Some(state) = self.game.get_state() {
-            self.state = state;
-            match self.state {
-                GameState::GameOver(_) => self.score += self.game.get_score(),
-                _ => {}
-            }
-            self.warning_message = self.game.get_warning_message();
-        }
     }
+
     fn reset(&mut self) {
-        self.game = Game::new();
-        self.state = self.game.get_state().unwrap();
+        self.game = Game::new(self.game.opponent.clone());
+        self.state = AppState::Playing(self.game.get_state().unwrap());
         self.warning_message = self.game.get_warning_message();
     }
 
@@ -131,12 +172,30 @@ impl App {
             }
             'q' => self.quit(),
             'r' => self.reset(),
-            'm' => self.show_menu(),
+            'm' => self.toggle_menu(),
             _ => {
                 if self.game.is_over() {
                     self.game.warning_message = None;
                 }
             }
         };
+    }
+}
+
+// tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_start_menu() {
+        let mut app = App::new("test".to_string());
+        assert_eq!(app.state, AppState::StartMenu(0));
+        app.next_row_menu(true);
+        assert_eq!(app.state, AppState::StartMenu(1));
+        app.next_row_menu(true);
+        assert_eq!(app.state, AppState::StartMenu(2));
+        app.next_row_menu(true);
+        assert_eq!(app.state, AppState::StartMenu(0));
     }
 }

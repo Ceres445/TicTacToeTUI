@@ -40,7 +40,7 @@ fn run_app<B: Backend>(
         app.update(events.recv()?);
 
         // check if app is done
-        if app.quit {
+        if let AppState::Quit = app.state {
             return Ok(());
         }
     }

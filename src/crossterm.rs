@@ -1,4 +1,4 @@
-use crate::{app::App, ui};
+use crate::{app::{App, AppState}, ui};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
@@ -59,7 +59,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
         }
-        if app.quit {
+        if let AppState::Quit = app.state {
             return Ok(());
         }
     }
