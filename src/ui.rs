@@ -1,6 +1,6 @@
-use crate::{
+use tictactoe_library::{
     app::{App, AppState},
-    game::{Cells, GameState, Player, Position},
+    game::{Cells, GameState, Player, Position, GameCell},
 };
 use tui::{
     backend::Backend,
@@ -89,7 +89,14 @@ fn draw_game_menu<B: Backend>(f: &mut Frame<B>, rect: &Rect, row: u8) {
     f.render_stateful_widget(table, *rect, &mut state)
 }
 
-pub fn draw_score<B: Backend>(f: &mut Frame<B>, app: &App, rect: &Rect, game_state: &GameState) {
+fn get_color(player: Player) -> Color {
+    match player {
+        Player::Player1 => Color::Red,
+        Player::Player2 => Color::Blue,
+    }
+}
+
+fn draw_score<B: Backend>(f: &mut Frame<B>, app: &App, rect: &Rect, game_state: &GameState) {
     let table = Table::new(vec![
         Row::new(vec![Cell::from("Score:".to_string())]),
         Row::new(vec![Cell::from(format!(
@@ -100,7 +107,7 @@ pub fn draw_score<B: Backend>(f: &mut Frame<B>, app: &App, rect: &Rect, game_sta
         .height(2),
         if let GameState::GameInProgress(_, player, _) = game_state {
             Row::new(vec![Cell::from(format!("{}'s turn", player,))])
-                .style(Style::default().fg(player.color()))
+                .style(Style::default().fg(get_color(*player)))
         } else {
             Row::new(vec![Cell::from("Game Over".to_string())])
                 .style(Style::default().fg(Color::Red))
@@ -112,12 +119,7 @@ pub fn draw_score<B: Backend>(f: &mut Frame<B>, app: &App, rect: &Rect, game_sta
     f.render_widget(table, *rect)
 }
 
-pub fn draw_game_over<B: Backend>(
-    f: &mut Frame<B>,
-    rect: &Rect,
-    winner: Option<Player>,
-    cells: Cells,
-) {
+fn draw_game_over<B: Backend>(f: &mut Frame<B>, rect: &Rect, winner: Option<Player>, cells: Cells) {
     let mut rows = cells
         .iter()
         .map(|item| {
@@ -136,7 +138,7 @@ pub fn draw_game_over<B: Backend>(
         .style(
             Style::default()
                 .fg(if let Some(player) = winner {
-                    player.color()
+                    get_color(player)
                 } else {
                     Color::Gray
                 })
@@ -157,14 +159,14 @@ pub fn draw_game_over<B: Backend>(
     // f.render_widget(block, *rect);
 }
 
-pub fn draw_warning<B: Backend>(f: &mut Frame<B>, rect: &Rect, message: String) {
+fn draw_warning<B: Backend>(f: &mut Frame<B>, rect: &Rect, message: String) {
     let block = Paragraph::new(message)
         .block(Block::default().title("Warning").borders(Borders::ALL))
         .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
     f.render_widget(block, *rect);
 }
 
-pub fn draw_board<B: Backend>(f: &mut Frame<B>, cells: Cells, pos: Position, rect: &Rect) {
+fn draw_board<B: Backend>(f: &mut Frame<B>, cells: Cells, pos: Position, rect: &Rect) {
     // TODO: Make it look like a tic tac toe board
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let rows = cells.iter().enumerate().map(|(i, item)| {
@@ -178,7 +180,11 @@ pub fn draw_board<B: Backend>(f: &mut Frame<B>, cells: Cells, pos: Position, rec
             Cell::from(Span::raw(c.to_text(Some((i, j))))).style(if (i, j) == pos.to_tuple() {
                 selected_style
             } else {
-                Style::default().fg(c.color())
+                Style::default().fg(match c {
+                    GameCell::Empty => Color::Gray,
+                    GameCell::Cross => Color::Red,
+                    GameCell::Circle => Color::Blue,
+                })
             })
         });
         Row::new(cells).height(rect.height / 3)
@@ -189,7 +195,7 @@ pub fn draw_board<B: Backend>(f: &mut Frame<B>, cells: Cells, pos: Position, rec
     f.render_widget(t, *rect)
 }
 
-pub fn draw_info<B: Backend>(f: &mut Frame<B>, rect: &Rect, state: &GameState) {
+fn draw_info<B: Backend>(f: &mut Frame<B>, rect: &Rect, state: &GameState) {
     let info = match state {
         GameState::GameInProgress(_, _, _) => "Game in progress...\nPress M/ Esc to open the Game Menu\nPress P to place a piece, Q to \
             quit, or R to reset the board.\nUse the arrow keys to move the piece.".to_string(),

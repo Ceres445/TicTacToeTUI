@@ -1,4 +1,3 @@
-use crate::{app::{App, AppState}, ui};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
@@ -9,10 +8,13 @@ use std::{
     io,
     time::{Duration, Instant},
 };
+use tictactoe_library::{app::{App, AppState}, update::Key};
 use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
+
+use crate::ui;
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     // setup terminal
@@ -53,6 +55,16 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
             .unwrap_or_else(|| Duration::from_secs(0));
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
+                let key = match key.code {
+                    event::KeyCode::Char(c) => Key::Char(c),
+                    event::KeyCode::Esc => Key::Esc,
+                    event::KeyCode::Enter => Key::Enter,
+                    event::KeyCode::Down => Key::Down,
+                    event::KeyCode::Up => Key::Up,
+                    event::KeyCode::Left => Key::Left,
+                    event::KeyCode::Right => Key::Right,
+                    _ => Key::Unknown,
+                };
                 app.update(key);
             }
         }

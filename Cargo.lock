@@ -6,9 +6,8 @@ version = 3
 name = "TicTacToeTUI"
 version = "1.2.1"
 dependencies = [
- "adorn",
  "crossterm",
- "rand",
+ "tictactoe_library",
  "tui",
 ]
 
@@ -257,6 +256,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "tictactoe_library"
+version = "0.1.0"
+source = "git+https://github.com/Ceres445/tictactoe#7e675cdb4b27e413c173fd2572501362ba29d077"
+dependencies = [
+ "adorn",
+ "rand",
 ]
 
 [[package]]
