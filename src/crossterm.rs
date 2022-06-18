@@ -25,7 +25,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let app = App::new("Tic Tac Toe".to_string());
+    let app = App::new();
     let res = run_app(&mut terminal, app);
 
     // restore terminal
