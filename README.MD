@@ -1,3 +1,6 @@
+# Moved repository
+Visit [new repo](https://github.com/Ceres445/tictactoe)
+
 # Tic Tac Toe TUI
 
 Play Tic Tac Toe in your terminal
